@@ -1,0 +1,17 @@
+.git
+.gitignore
+.gitlab-ci.yml
+.gitleaks.toml
+.idea
+.vscode
+docs
+deploy/
+!scripts/entrypoint.sh
+AGENTS
+README.md
+docker-compose*.yml
+*.md
+**/.DS_Store
+# The published tree ships the logo directory with only its README; keep it
+# in the build context so COPY assets/default-logos/ always has a source.
+!assets/default-logos/README.md

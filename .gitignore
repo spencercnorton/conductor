@@ -1,0 +1,23 @@
+/conductor
+/conductor.exe
+/dist/
+/.env
+/.env.local
+*.local.yaml
+*.local.yml
+*.local.md
+/.idea/
+/.vscode/
+/coverage.out
+/coverage.html
+/tmp/
+/bin/
+.ci-commit
+.ci-build-date
+*.test
+*.out
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc

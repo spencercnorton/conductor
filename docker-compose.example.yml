@@ -1,0 +1,61 @@
+# docker-compose.example.yml — local dev / quick-start for Phase 1+.
+#
+# Usage:
+#   cp .env.example .env       # generate CONDUCTOR_CRED_KEY:  openssl rand -hex 32
+#   docker compose -f docker-compose.example.yml up --build
+#
+# Then point Plex at http://<host>:8409 as a manual HDHomeRun tuner. Use the
+# admin CRUD endpoints to add a provider + credentials + channels:
+#
+#   curl -X POST localhost:8409/admin/providers \
+#        -H 'content-type: application/json' \
+#        -d '{"name":"MyProvider","kind":"m3u_xtream","base_url":"http://provider.example"}'
+#
+# Production deploy uses a separate compose file with secrets injected
+# from your own secret manager.
+
+services:
+  conductor:
+    build:
+      context: .
+      args:
+        VERSION: 0.2.0-dev
+        COMMIT: local
+    image: conductor:dev
+    container_name: conductor
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8409:8409"
+    environment:
+      CONDUCTOR_LISTEN: ":8409"
+      CONDUCTOR_BASE_URL: "${CONDUCTOR_BASE_URL:-http://host.docker.internal:8409}"
+      CONDUCTOR_TUNER_COUNT: "8"
+      CONDUCTOR_POSTGRES_DSN: "postgres://conductor:${POSTGRES_PASSWORD:-conductor}@postgres:5432/conductor?sslmode=disable"
+      CONDUCTOR_CRED_KEY: "${CONDUCTOR_CRED_KEY}"
+      # CONDUCTOR_OPSBOT_WEBHOOK: "https://ops.example.com/webhooks/conductor"
+      # CONDUCTOR_OPSBOT_SECRET: "${OPSBOT_WEBHOOK_SECRET}"
+    volumes:
+      - conductor-data:/var/lib/conductor
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: conductor-pg
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: conductor
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-conductor}
+      POSTGRES_DB: conductor
+    volumes:
+      - conductor-pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "conductor"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  conductor-data:
+  conductor-pg:

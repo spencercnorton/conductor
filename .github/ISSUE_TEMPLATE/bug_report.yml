@@ -1,0 +1,46 @@
+# Baseline: the helios public bug_report.yml, which passed the gate. Keep labels: as is — the standard requires them.
+name: Bug report
+description: Something in Conductor does not behave as documented.
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Please remove anything private from logs and output before pasting them: provider hostnames, credentials, stream URLs and tokens.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Point Plex at Conductor as a manual HDHomeRun tuner
+        2. …
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options: ["HDHomeRun emulator", "Stream pool", "EPG / guide data", "DVR", "Plex integration", "Admin API", "Other / not sure"]
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: "Conductor version, Plex Media Server version, and how you run it."
+      placeholder: "Conductor 0.58.0, Plex 1.41.0, Docker Compose on Ubuntu 24.04"
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log excerpt
+      description: "Container logs around the failure (`docker logs conductor`). Scrubbed."
+      render: text
