@@ -28,13 +28,19 @@ services:
       postgres:
         condition: service_healthy
     ports:
-      - "8409:8409"
+      - "${CONDUCTOR_BIND_ADDRESS:-127.0.0.1}:8409:8409"
     environment:
       CONDUCTOR_LISTEN: ":8409"
       CONDUCTOR_BASE_URL: "${CONDUCTOR_BASE_URL:-http://host.docker.internal:8409}"
       CONDUCTOR_TUNER_COUNT: "8"
-      CONDUCTOR_POSTGRES_DSN: "postgres://conductor:${POSTGRES_PASSWORD:-conductor}@postgres:5432/conductor?sslmode=disable"
-      CONDUCTOR_CRED_KEY: "${CONDUCTOR_CRED_KEY}"
+      CONDUCTOR_POSTGRES_DSN: "postgres://conductor:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/conductor?sslmode=disable"
+      CONDUCTOR_CRED_KEY: "${CONDUCTOR_CRED_KEY:?Set CONDUCTOR_CRED_KEY in .env}"
+      # Newer Plex apps will not load plain-HTTP guide images. Point channel
+      # logos at an HTTPS proxy that serves this container's GET /logos/.
+      # CONDUCTOR_LOGO_BASE_URL: "https://logos.example.com"
+      CONDUCTOR_ADMIN_API_KEY: "${CONDUCTOR_ADMIN_API_KEY:?Set CONDUCTOR_ADMIN_API_KEY in .env}"
+      CONDUCTOR_AUTH_ENABLED: "true"
+      CONDUCTOR_UPSTREAM_PROXY: "${CONDUCTOR_UPSTREAM_PROXY:-}"
       # CONDUCTOR_OPSBOT_WEBHOOK: "https://ops.example.com/webhooks/conductor"
       # CONDUCTOR_OPSBOT_SECRET: "${OPSBOT_WEBHOOK_SECRET}"
     volumes:
@@ -46,7 +52,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: conductor
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-conductor}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: conductor
     volumes:
       - conductor-pg:/var/lib/postgresql/data

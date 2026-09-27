@@ -196,6 +196,22 @@ func TestEmitChannel_LocalLogoBecomesAbsolute(t *testing.T) {
 	}
 }
 
+func TestRebaseLogoURL(t *testing.T) {
+	const base, logos = "http://conductor.local:8409", "https://logos.example.test/"
+	for _, tc := range []struct{ in, want string }{
+		{"/logos/a.png", "https://logos.example.test/logos/a.png"},
+		{base + "/logos/Greenshot%202025.png", "https://logos.example.test/logos/Greenshot%202025.png"},
+		{base + "/posters/branded/x.jpg", base + "/posters/branded/x.jpg"},
+		{"/posters/assets/x.jpg", "/posters/assets/x.jpg"},
+		{"https://cdn.example.test/logos/a.png", "https://cdn.example.test/logos/a.png"},
+		{base + "0/logos/a.png", base + "0/logos/a.png"},
+	} {
+		if got := rebaseLogoURL(tc.in, base, logos); got != tc.want {
+			t.Errorf("rebaseLogoURL(%q) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+}
+
 func TestEmitProgramme_LocalPosterBecomesAbsolute(t *testing.T) {
 	row := store.ProgramOutputRow{
 		ChannelID:          uuid.MustParse("11111111-1111-1111-1111-111111111111"),

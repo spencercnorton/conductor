@@ -3,6 +3,30 @@
 All notable changes to Conductor are recorded here. Versions follow
 [semantic versioning](https://semver.org/); each release is a tag on `main`.
 
+## Unreleased
+
+- Establish GitHub pull requests as the development workflow, with privacy checks.
+- Add deployment, configuration, security, upgrade and recovery documentation.
+- Require quickstart database, encryption and administration secrets and bind
+  to loopback initially; provider traffic may use an explicitly configured proxy.
+
+## v0.60.0
+
+- `CONDUCTOR_UPSTREAM_PROXY` sends provider traffic — the panel request, the
+  origin it redirects to, and the ppvsync catalogue read — through an HTTP
+  proxy, so all of it leaves from one IP. Everything else (Plex, the arrs,
+  the ops bot, EPG sources) stays direct. Empty keeps the direct path.
+
+## v0.59.0
+
+- `CONDUCTOR_LOGO_BASE_URL` moves channel logos in the XMLTV guide onto a
+  separate origin, so they can be served over HTTPS. The redesigned Plex apps
+  load guide images themselves and will not load plain-HTTP LAN URLs, which
+  left every self-hosted logo blank. Stream and lineup URLs stay on
+  `CONDUCTOR_BASE_URL`. Logos stored as absolute URLs on the base URL are
+  rebased too. Changing the setting changes the guide's ETag, so Plex picks
+  it up on its next fetch.
+
 ## v0.58.3 — first public release
 
 Conductor's first published release. The project has been running in

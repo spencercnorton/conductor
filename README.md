@@ -55,12 +55,12 @@ external commercial-detection service before Plex imports it.
 git clone https://github.com/spencercnorton/conductor.git
 cd conductor
 cp .env.example .env
-openssl rand -hex 32          # put this in CONDUCTOR_CRED_KEY in .env
+openssl rand -hex 32          # generate each of POSTGRES_PASSWORD, CONDUCTOR_CRED_KEY and CONDUCTOR_ADMIN_API_KEY separately
 docker compose -f docker-compose.example.yml up --build -d
 ```
 
 Then in Plex: **Live TV & DVR → Set up Plex DVR → enter its address manually**
-and point it at `http://<host>:8409`. There is no published image yet; the
+and point it at `http://<host>:8409`. For Plex on another host, configure CONDUCTOR_BIND_ADDRESS and CONDUCTOR_BASE_URL as described in the operations guide. There is no published image yet; the
 compose file builds from this tree.
 
 ### Other platforms — from source
@@ -69,13 +69,16 @@ Go 1.25 or newer and a Postgres 16+ database:
 
 ```bash
 go build ./cmd/conductor
-CONDUCTOR_DSN=postgres://... ./conductor
+CONDUCTOR_POSTGRES_DSN=postgres://... ./conductor
 ```
 
 Running with no database serves the HDHomeRun emulator with one stub channel,
 which is enough to prove Plex pairing.
 
 ## Documentation
+
+- [Deployment and operations guide](docs/OPERATIONS.md) — setup, configuration, verification, upgrades, recovery and troubleshooting.
+- [Releasing](docs/RELEASING.md) — public builds, release checks and private deployment boundaries.
 
 - [`docs/migration-from-dispatcharr.md`](docs/migration-from-dispatcharr.md) — moving an existing Dispatcharr setup across.
 - [`docs/epg-episode-numbers.md`](docs/epg-episode-numbers.md) — how episode numbers are recovered and emitted.
@@ -103,7 +106,7 @@ there is no telemetry.
 
 - Bugs and feature requests: [open an issue](https://github.com/spencercnorton/conductor/issues/new/choose). Questions: [Discussions](https://github.com/spencercnorton/conductor/discussions).
 - Security reports: [private vulnerability reporting](https://github.com/spencercnorton/conductor/security/advisories/new) — see [SECURITY.md](SECURITY.md). There is no e-mail address; that is deliberate.
-- Pull requests are welcome; read [CONTRIBUTING.md](CONTRIBUTING.md) first — this repository is a release mirror, and accepted changes ship in the next tagged release.
+- Pull requests are welcome; read [CONTRIBUTING.md](CONTRIBUTING.md) first — changes are reviewed and merged on GitHub, then shipped in tagged releases.
 - If Conductor saves you time, you can [support its development](https://buy.stripe.com/8x26oH2U44f65TRe574wM04).
 
 ## Development

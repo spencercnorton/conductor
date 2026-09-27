@@ -5,15 +5,13 @@ the process is deliberately light — but a few things are fixed.
 
 ## How changes land
 
-This GitHub repository is a **release mirror**: every commit on `main` is a
-tagged release built from a private development tree, and `main` only ever
-moves forward by a release. That has two consequences for contributors:
+GitHub is the development home. Branch from `main` and open a pull request
+into `main`. Build, test and privacy checks must pass before merge. Changes
+ship in tagged releases; see [the release guide](docs/RELEASING.md).
 
-- Pull requests are reviewed **here**, but they are not merged here. An
-  accepted change is applied to the development tree and ships in the next
-  tagged release; the pull request is then closed with a reference to that
-  release, and you keep the credit in the release notes.
-- Please do not rebase your pull request onto anything but `main`.
+Use a GitHub noreply address for commit authorship if you prefer to keep
+your personal address private. Review your diff and commit messages before
+pushing: public history, logs and uploaded screenshots are public data.
 
 ## Before you start
 

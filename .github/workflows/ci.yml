@@ -1,0 +1,65 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  tests:
+    name: Go build and race tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version-file: go.mod
+      - run: go vet ./...
+      - run: go build ./...
+      - run: go test -race -count=1 -timeout=10m ./...
+  integration:
+    name: PostgreSQL integration
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: test-only
+          POSTGRES_DB: conductor_test
+        ports: ['5432:5432']
+        options: --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      CONDUCTOR_INT_TEST: '1'
+      CONDUCTOR_TEST_DSN: postgres://postgres:test-only@127.0.0.1:5432/conductor_test?sslmode=disable
+      CONDUCTOR_STREAM_TEST_DSN: postgres://postgres:test-only@127.0.0.1:5432/conductor_stream_test?sslmode=disable
+      CONDUCTOR_API_TEST_DSN: postgres://postgres:test-only@127.0.0.1:5432/conductor_api_test?sslmode=disable
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version-file: go.mod
+      - name: Prepare isolated databases
+        env:
+          PGPASSWORD: test-only
+        run: |
+          createdb -h 127.0.0.1 -U postgres conductor_stream_test
+          createdb -h 127.0.0.1 -U postgres conductor_api_test
+      - run: go test -race -p 1 -count=1 -timeout=15m ./internal/store ./internal/stream ./internal/api ./internal/dvr ./internal/epg ./internal/sd
+  image:
+    name: Public container build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - run: docker build --tag conductor:ci .

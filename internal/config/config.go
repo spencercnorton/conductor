@@ -13,8 +13,10 @@ package config
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"net"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -183,6 +185,18 @@ type Config struct {
 	// Defaults to ${CONDUCTOR_DATA_DIR}/logos.
 	LogosDir string
 
+	// CONDUCTOR_LOGO_BASE_URL: optional origin for self-hosted channel logos
+	// in the XMLTV guide. Newer Plex apps fetch guide images themselves and
+	// will not load plain-HTTP LAN URLs, so point this at an HTTPS proxy
+	// that serves GET /logos/. Empty keeps logos on BaseURL.
+	LogoBaseURL string
+
+	// CONDUCTOR_UPSTREAM_PROXY: optional HTTP proxy URL (credentials, if any,
+	// in its userinfo) for provider traffic only — the panel request, the
+	// origin it redirects to, and the catalogue read — so all of it leaves
+	// from one IP. Empty keeps provider traffic direct.
+	UpstreamProxy *url.URL
+
 	// CONDUCTOR_SPORTS_API_KEY / CONDUCTOR_SPORTS_INTERVAL: sports
 	// schedule ingestion (Phase 5b). API key defaults to TheSportsDB's
 	// free key when unset. Interval defaults to 30m. Set to 0 to keep
@@ -278,6 +292,11 @@ func Load() (Config, error) {
 	tunerCount, err := strconv.Atoi(envDefault("CONDUCTOR_TUNER_COUNT", "8"))
 	if err != nil {
 		return Config{}, fmt.Errorf("CONDUCTOR_TUNER_COUNT: %w", err)
+	}
+
+	upstreamProxy, err := parseUpstreamProxy(os.Getenv("CONDUCTOR_UPSTREAM_PROXY"))
+	if err != nil {
+		return Config{}, fmt.Errorf("CONDUCTOR_UPSTREAM_PROXY: %w", err)
 	}
 
 	epgInterval := 6 * time.Hour
@@ -393,6 +412,8 @@ func Load() (Config, error) {
 		SDPassword:               os.Getenv("CONDUCTOR_SD_PASSWORD"),
 		SDBaseURL:                os.Getenv("CONDUCTOR_SD_BASE_URL"),
 		LogosDir:                 logosDirDefault(dataDir),
+		LogoBaseURL:              os.Getenv("CONDUCTOR_LOGO_BASE_URL"),
+		UpstreamProxy:            upstreamProxy,
 		SportsAPIKey:             os.Getenv("CONDUCTOR_SPORTS_API_KEY"),
 		SportsInterval:           parseDurationDefault(os.Getenv("CONDUCTOR_SPORTS_INTERVAL"), 0),
 		PPVSyncEnabled:           parseBoolDefault(os.Getenv("CONDUCTOR_PPVSYNC_ENABLED"), true),
@@ -566,4 +587,18 @@ func guessBaseURL(listen string) string {
 		return fmt.Sprintf("http://%s:%s", v4.String(), port)
 	}
 	return "http://127.0.0.1:" + port
+}
+
+// parseUpstreamProxy validates CONDUCTOR_UPSTREAM_PROXY. Errors never echo the
+// value: it carries the proxy password.
+func parseUpstreamProxy(raw string) (*url.URL, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil, nil
+	}
+	u, err := url.Parse(raw)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" || u.Port() == "" {
+		return nil, errors.New("want an http(s) URL with an explicit host and port")
+	}
+	return u, nil
 }

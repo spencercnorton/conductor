@@ -53,6 +53,7 @@ type Deps struct {
 	PPVMonitor     *alerts.WorkerMonitor // optional; surfaced by GET /admin/epg/health
 	SportsMonitor  *alerts.WorkerMonitor // optional; surfaced by GET /admin/epg/health
 	LogosDir       string                // optional; when set, mounts GET /logos/{filename}
+	LogoBaseURL    string                // optional; XMLTV channel logos use it instead of Device.BaseURL
 	PosterCacheDir string                // optional; when set, mounts GET /posters/branded/{channel_id}.jpg
 	// SeedLineup is used when DB is nil (Phase 0 / dev convenience).
 	SeedLineup []hdhr.Channel
@@ -91,6 +92,7 @@ func NewRouter(d Deps) http.Handler {
 	// EPG output for Plex (Phase 2). Public — Plex can't speak JWT.
 	if d.DB != nil {
 		eo := epg.NewOutput(d.DB, d.Device.BaseURL)
+		eo.LogoBaseURL = d.LogoBaseURL
 		// Gzip: 13K+ programmes serialize to multi-MB XML and Plex
 		// re-fetches every ~12h; XMLTV compresses ~10× (audit Q5).
 		mux.HandleFunc("GET /xmltv.xml", gzipped(eo.ServeHTTP))

@@ -23,6 +23,10 @@ type Output struct {
 	db      *store.DB
 	baseURL string
 	now     func() time.Time
+
+	// LogoBaseURL, when set, is where channel <icon> URLs point for logos
+	// served from /logos/. Stream URLs stay on baseURL.
+	LogoBaseURL string
 }
 
 func NewOutput(db *store.DB, baseURL string) *Output {
@@ -68,7 +72,28 @@ func (o *Output) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "epg list: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
+	// Rebased before the ETag is computed, so changing LogoBaseURL
+	// invalidates Plex's cached guide.
+	if o.LogoBaseURL != "" {
+		for i := range rows {
+			rows[i].ChannelLogoURL = rebaseLogoURL(rows[i].ChannelLogoURL, o.baseURL, o.LogoBaseURL)
+		}
+	}
 	serveXMLTVRepresentation(w, r, rows, o.baseURL, latest, now)
+}
+
+// rebaseLogoURL moves a self-hosted logo — "/logos/<file>", or the same
+// path spelled absolutely on baseURL, as older rows store it — onto
+// logoBaseURL. Logos hosted anywhere else pass through unchanged.
+func rebaseLogoURL(logoURL, baseURL, logoBaseURL string) string {
+	path := logoURL
+	if b := strings.TrimRight(baseURL, "/"); b != "" {
+		path = strings.TrimPrefix(path, b)
+	}
+	if !strings.HasPrefix(path, "/logos/") {
+		return logoURL
+	}
+	return strings.TrimRight(logoBaseURL, "/") + path
 }
 
 // serveXMLTVRepresentation owns conditional semantics for both GET and HEAD.

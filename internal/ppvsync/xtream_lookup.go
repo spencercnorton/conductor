@@ -15,6 +15,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"regexp"
 	"strconv"
 	"sync"
@@ -70,7 +71,7 @@ type XtreamLookup struct {
 // m3u_xtream providers + their first enabled credential. Returns an error
 // when no usable provider/credential pair exists — callers treat that as
 // "ppvsync cannot run on this deploy".
-func NewXtreamLookupFromDB(ctx context.Context, db *store.DB, key *security.CredKey, logger *slog.Logger) (*XtreamLookup, error) {
+func NewXtreamLookupFromDB(ctx context.Context, db *store.DB, key *security.CredKey, hc *http.Client, logger *slog.Logger) (*XtreamLookup, error) {
 	providers, err := db.ListProviders(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("list providers: %w", err)
@@ -96,7 +97,7 @@ func NewXtreamLookupFromDB(ctx context.Context, db *store.DB, key *security.Cred
 				}
 				continue
 			}
-			clients = append(clients, xtream.New(p.BaseURL, c.Username, string(pw), nil))
+			clients = append(clients, xtream.New(p.BaseURL, c.Username, string(pw), hc))
 			break // one credential per provider is enough for catalogue reads
 		}
 	}
