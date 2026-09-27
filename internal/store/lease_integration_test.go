@@ -19,6 +19,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/spencercnorton/conductor/internal/testdb"
 	"os"
 	"os/exec"
 	"strings"
@@ -53,7 +54,7 @@ func skipIfNoIntegration(t *testing.T) {
 func startTestPostgres(t *testing.T) string {
 	t.Helper()
 	if dsn := os.Getenv("CONDUCTOR_TEST_DSN"); dsn != "" {
-		return dsn
+		return testdb.New(t, dsn)
 	}
 	if _, err := exec.LookPath("docker"); err != nil {
 		t.Skip("docker not available and CONDUCTOR_TEST_DSN not set")

@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"errors"
+	"github.com/spencercnorton/conductor/internal/testdb"
 	"io"
 	"log/slog"
 	"net/http"
@@ -28,7 +29,7 @@ func openAPICancelIntegrationDB(t *testing.T) *store.DB {
 	if dsn == "" {
 		t.Skip("CONDUCTOR_API_TEST_DSN is required for API cancellation integration tests")
 	}
-	db, err := store.Open(context.Background(), dsn)
+	db, err := store.Open(context.Background(), testdb.New(t, dsn))
 	if err != nil {
 		t.Fatal(err)
 	}

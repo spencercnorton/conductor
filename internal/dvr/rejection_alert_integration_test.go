@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/spencercnorton/conductor/internal/testdb"
 	"io"
 	"log/slog"
 	"net/http"
@@ -18,9 +19,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/spencercnorton/conductor/internal/alerts"
 	"github.com/spencercnorton/conductor/internal/store"
-	"github.com/google/uuid"
 )
 
 type rejectionAlertProcessor func(context.Context, string, string, time.Duration) (MediaReport, error)
@@ -42,7 +43,7 @@ func TestIntegrationArtifactRejectionAlertsOnlyWinningTerminalizer(t *testing.T)
 		t.Fatal("an explicitly isolated CONDUCTOR_TEST_DSN is required")
 	}
 	ctx := context.Background()
-	db, err := store.Open(ctx, dsn)
+	db, err := store.Open(ctx, testdb.New(t, dsn))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -44,3 +44,8 @@ Record the running version and image digest before an upgrade. Back up state,
 rehearse its restore, and preserve the previous artifact. Database migrations
 can make a binary-only downgrade unsafe; recover the matching backup when a
 migration is not reversible. Never mutate an existing release tag.
+
+Integration tests use disposable PostgreSQL URLs whose database names end in
+`_test`. The test role needs `CREATEDB`: each test creates and removes only its
+own randomly named database. Media tests require FFmpeg and FFprobe. Never
+point test URLs at an application database.

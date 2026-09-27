@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/spencercnorton/conductor/internal/testdb"
 	"io"
 	"log/slog"
 	"net/http"
@@ -72,7 +73,7 @@ func freshSDIntegrationDB(t *testing.T) *store.DB {
 			time.Sleep(500 * time.Millisecond)
 		}
 	}
-	db, err := store.Open(context.Background(), dsn)
+	db, err := store.Open(context.Background(), testdb.New(t, dsn))
 	if err != nil {
 		t.Fatal(err)
 	}
