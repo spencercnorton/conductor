@@ -6,6 +6,7 @@ package epg_test
 import (
 	"context"
 	"fmt"
+	"github.com/spencercnorton/conductor/internal/testdb"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -39,7 +40,7 @@ func skipIfNoIntegration(t *testing.T) {
 func startTestPostgres(t *testing.T) string {
 	t.Helper()
 	if dsn := os.Getenv("CONDUCTOR_TEST_DSN"); dsn != "" {
-		return dsn
+		return testdb.New(t, dsn)
 	}
 	if _, err := exec.LookPath("docker"); err != nil {
 		t.Skip("docker not available and CONDUCTOR_TEST_DSN not set")

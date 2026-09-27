@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/spencercnorton/conductor/internal/testdb"
 	"io"
 	"log/slog"
 	"net/http"
@@ -248,7 +249,7 @@ func TestIntegrationStoppingPumpPreRollIsDiscardedBeforeDVRWrite(t *testing.T) {
 		t.Skip("CONDUCTOR_STREAM_TEST_DSN is required for internal stream integration test")
 	}
 	ctx := context.Background()
-	db, err := store.Open(ctx, dsn)
+	db, err := store.Open(ctx, testdb.New(t, dsn))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -426,7 +427,7 @@ func TestIntegrationReservationReloadFailureIsPreByteOperationalError(t *testing
 		t.Skip("CONDUCTOR_STREAM_TEST_DSN is required for internal stream integration test")
 	}
 	ctx := context.Background()
-	db, err := store.Open(ctx, dsn)
+	db, err := store.Open(ctx, testdb.New(t, dsn))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -510,7 +511,7 @@ func TestIntegrationBlockedPumpClaimRetainsOperationalDeadlineCause(t *testing.T
 		t.Skip("CONDUCTOR_STREAM_TEST_DSN is required for internal stream integration test")
 	}
 	ctx := context.Background()
-	db, err := store.Open(ctx, dsn)
+	db, err := store.Open(ctx, testdb.New(t, dsn))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -819,7 +820,7 @@ func TestIntegrationDrainingPumpHoldsCapacityUntilTeardown(t *testing.T) {
 		t.Skip("CONDUCTOR_STREAM_TEST_DSN is required for internal stream integration test")
 	}
 	ctx := context.Background()
-	db, err := store.Open(ctx, dsn)
+	db, err := store.Open(ctx, testdb.New(t, dsn))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -945,7 +946,7 @@ func TestIntegrationDetachedPumpHoldsCapacityUntilOnExit(t *testing.T) {
 		t.Skip("CONDUCTOR_STREAM_TEST_DSN is required for internal stream integration test")
 	}
 	ctx := context.Background()
-	db, err := store.Open(ctx, dsn)
+	db, err := store.Open(ctx, testdb.New(t, dsn))
 	if err != nil {
 		t.Fatal(err)
 	}

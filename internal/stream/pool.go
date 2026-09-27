@@ -21,6 +21,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"sync"
 	"time"
 
@@ -337,6 +338,13 @@ func NewPool(logger *slog.Logger, db *store.DB, resolver store.CredentialResolve
 			},
 		},
 	}
+}
+
+// SetUpstreamProxy sends every provider fetch — the panel request and the
+// origin it redirects to — through proxy, so both see the same egress IP.
+// Call before serving; nil keeps them direct.
+func (p *Pool) SetUpstreamProxy(proxy *url.URL) {
+	p.hc.Transport.(*http.Transport).Proxy = http.ProxyURL(proxy)
 }
 
 // CapacityChanges exposes coalesced slot-release hints. Consumers must treat

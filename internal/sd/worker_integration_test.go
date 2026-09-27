@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/spencercnorton/conductor/internal/testdb"
 	"io"
 	"log/slog"
 	"net/http"
@@ -72,7 +73,7 @@ func freshSDIntegrationDB(t *testing.T) *store.DB {
 			time.Sleep(500 * time.Millisecond)
 		}
 	}
-	db, err := store.Open(context.Background(), dsn)
+	db, err := store.Open(context.Background(), testdb.New(t, dsn))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1597,7 +1598,9 @@ func TestIntegrationSDMultiDayManifestPublishesAtomicallyAndSkipsUnchanged(t *te
 	now := time.Now().UTC()
 	dayA := now.Format("2006-01-02")
 	dayB := now.AddDate(0, 0, 1).Format("2006-01-02")
-	dayAStart, err := time.Parse(time.RFC3339, dayA+"T12:00:00Z")
+	// Keep the first-day airing unexpired at every UTC hour; expired airings
+	// are intentionally filtered before program-detail requests.
+	dayAStart, err := time.Parse(time.RFC3339, dayA+"T23:59:00Z")
 	if err != nil {
 		t.Fatal(err)
 	}

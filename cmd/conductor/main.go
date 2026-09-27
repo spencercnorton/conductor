@@ -111,6 +111,7 @@ func main() {
 		Auth:           authCfg,
 		Alerts:         alertClient,
 		LogosDir:       cfg.LogosDir,
+		LogoBaseURL:    cfg.LogoBaseURL,
 		PosterCacheDir: cfg.PosterCacheDir,
 		SeedLineup:     hdhr.SeedLineup(cfg.BaseURL),
 	}
@@ -219,6 +220,10 @@ func main() {
 		pool.FFmpegBinary = cfg.FFmpegBinary
 		pool.DiagDir = cfg.DiagDir
 		pool.LiveStartupLead = cfg.LiveStartupLead
+		if cfg.UpstreamProxy != nil {
+			pool.SetUpstreamProxy(cfg.UpstreamProxy)
+			logger.Info("provider traffic via upstream proxy", "proxy", cfg.UpstreamProxy.Host)
+		}
 		defer pool.Close()
 		// Render the continuity slate before Plex can open a tuner. A lazy
 		// first render during a live outage would consume the same sub-ten-second
@@ -319,7 +324,7 @@ func main() {
 				// can't block conductor startup (Plex tuner discovery depends
 				// on the HTTP listener coming up promptly).
 				go func() {
-					lookup, err := ppvsync.NewXtreamLookupFromDB(ctx, db, credKey, logger)
+					lookup, err := ppvsync.NewXtreamLookupFromDB(ctx, db, credKey, catalogueClient(cfg), logger)
 					if err != nil {
 						logger.Error("ppvsync init failed: no usable xtream provider", "err", err)
 						ppvMonitor.InitFailed(ctx, err.Error())
@@ -503,6 +508,7 @@ func main() {
 		"commit", version.Commit,
 		"listen", cfg.ListenAddr,
 		"base_url", cfg.BaseURL,
+		"logo_base_url", cfg.LogoBaseURL,
 		"tuner_count", deps.Device.TunerCount(),
 	)
 
@@ -628,4 +634,15 @@ func maskDSN(dsn string) string {
 		return dsn[at+1 : slash]
 	}
 	return "<dsn>"
+}
+
+// catalogueClient is ppvsync's catalogue client: nil (xtream's direct default)
+// unless CONDUCTOR_UPSTREAM_PROXY routes provider traffic.
+func catalogueClient(cfg config.Config) *http.Client {
+	if cfg.UpstreamProxy == nil {
+		return nil
+	}
+	t := http.DefaultTransport.(*http.Transport).Clone()
+	t.Proxy = http.ProxyURL(cfg.UpstreamProxy)
+	return &http.Client{Timeout: 120 * time.Second, Transport: t}
 }

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -97,5 +98,28 @@ func TestLoadDVRAdmissionConfig(t *testing.T) {
 				t.Fatalf("Load error=%v, want %s validation", err, tc.key)
 			}
 		})
+	}
+}
+
+func TestParseUpstreamProxy(t *testing.T) {
+	if u, err := parseUpstreamProxy(" "); u != nil || err != nil {
+		t.Fatalf("blank = %v, %v; want direct", u, err)
+	}
+	withCreds := (&url.URL{Scheme: "http", User: url.UserPassword("user", "secret"), Host: "proxy.example:8888"}).String()
+	u, err := parseUpstreamProxy(withCreds)
+	if err != nil || u.Host != "proxy.example:8888" || u.User.Username() != "user" {
+		t.Fatalf("proxy = %v, %v", u, err)
+	}
+	userinfo := "user:" + "secret" + "@"
+	for _, bad := range []string{
+		"proxy.example:8888",
+		"socks5://proxy.example:1080",
+		"http://" + userinfo,
+		"http://" + userinfo + "proxy.example",
+		"http://" + userinfo + "proxy.example:%zz",
+	} {
+		if _, err := parseUpstreamProxy(bad); err == nil || strings.Contains(err.Error(), "secret") {
+			t.Fatalf("%q: err = %v; want an error that does not echo the password", bad, err)
+		}
 	}
 }
