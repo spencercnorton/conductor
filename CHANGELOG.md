@@ -3,7 +3,7 @@
 All notable changes to Conductor are recorded here. Versions follow
 [semantic versioning](https://semver.org/); each release is a tag on `main`.
 
-## Unreleased
+## 0.60.1 — 2026-09-27
 
 - Establish GitHub pull requests as the development workflow, with privacy checks.
 - Add deployment, configuration, security, upgrade and recovery documentation.
