@@ -25,9 +25,11 @@ under `## Unreleased` in the changelog until preparing a release.
    git push origin refs/tags/vX.Y.Z
    ```
 
-6. Create a GitHub Release with the changelog entry, build artifacts and
-   `SHA256SUMS.txt`. Build artifacts from that exact public tag; do not upload
-   local configuration, data volumes, debug logs or a private checkout's archive.
+6. The tag workflow re-runs the public CI and privacy gates, proves the tag
+   belongs to main, and publishes a GitHub Release with checksummed source
+   and product artifacts. Desktop package candidates are built from the tag;
+   container products publish versioned GHCR images and record their digests.
+   Never upload local configuration, data volumes, debug logs or a private archive.
 7. Verify download checksums and installation on a clean supported system.
    Update the website's guides and media when visible behavior changes.
 

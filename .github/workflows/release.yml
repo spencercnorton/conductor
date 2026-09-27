@@ -1,0 +1,66 @@
+name: Release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  checks:
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+  privacy:
+    uses: ./.github/workflows/privacy.yml
+    permissions:
+      contents: read
+  publish:
+    needs: [checks, privacy]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: write
+      packages: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: ${{ github.ref_name }}
+      RELEASE_REPOSITORY: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Prove stable tag and source
+        run: |
+          printf '%s\n' "$RELEASE_TAG" | grep -Eq '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
+          git merge-base --is-ancestor HEAD origin/main
+          test "$RELEASE_TAG" = "v$(tr -d '[:space:]' < VERSION)"
+      - name: Create release asset directory
+        run: mkdir -p release-assets
+      - name: Build and publish tagged container
+        env:
+          REGISTRY_TOKEN: ${{ github.token }}
+        run: |
+          printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          IMAGE="ghcr.io/$RELEASE_REPOSITORY"
+          docker build --build-arg VERSION="$RELEASE_TAG" \
+            --build-arg COMMIT="$GITHUB_SHA" --build-arg BUILD_DATE="$(git show -s --format=%cI HEAD)" \
+            --tag "$IMAGE:$RELEASE_TAG" .
+          docker push "$IMAGE:$RELEASE_TAG"
+          docker image inspect "$IMAGE:$RELEASE_TAG" --format '{{index .RepoDigests 0}}' > release-assets/IMAGE_DIGEST.txt
+          docker build -f Dockerfile.cuda --build-arg COMMIT="$GITHUB_SHA" \
+            --build-arg BUILD_DATE="$(git show -s --format=%cI HEAD)" --tag "$IMAGE:$RELEASE_TAG-cuda" .
+          docker push "$IMAGE:$RELEASE_TAG-cuda"
+          docker image inspect "$IMAGE:$RELEASE_TAG-cuda" --format '{{index .RepoDigests 0}}' > release-assets/GPU_IMAGE_DIGEST.txt
+          docker logout ghcr.io
+      - name: Package the exact public source
+        run: |
+          git archive --format=tar.gz --prefix=source/ HEAD > release-assets/source.tar.gz
+          cd release-assets
+          sha256sum * > SHA256SUMS.txt
+      - name: Publish immutable release artifacts
+        run: |
+          gh release create "$RELEASE_TAG" release-assets/* \
+            --verify-tag --title "$RELEASE_TAG" --generate-notes
