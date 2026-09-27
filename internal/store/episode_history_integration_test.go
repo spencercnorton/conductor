@@ -91,7 +91,8 @@ func TestEffectiveNewIsHistoricalCanonicalAndShared(t *testing.T) {
 		channels[i] = channel
 	}
 
-	now := time.Now().UTC()
+	// PostgreSQL timestamps retain microseconds; use that precision for map keys.
+	now := time.Now().UTC().Truncate(time.Microsecond)
 	program := func(channel int, start time.Time, title, episode, hash string) store.EPGProgram {
 		return store.EPGProgram{
 			ChannelID: channels[channel].ID, StartAt: start, EndAt: start.Add(time.Hour),
