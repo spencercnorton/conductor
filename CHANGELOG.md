@@ -3,6 +3,17 @@
 All notable changes to Conductor are recorded here. Versions follow
 [semantic versioning](https://semver.org/); each release is a tag on `main`.
 
+## 0.60.2 — 2026-09-29
+
+- Remember a provider's black "off air" placeholder for a minute per upstream
+  URL, shared by every stream pump. Retries, re-tunes and other viewers of an
+  off-air channel inside that window reuse the verdict instead of sending
+  another panel request, downloading the placeholder again and re-running the
+  classifier. One channel left on black used to cost 10-20 provider requests
+  a minute, which counts against a provider's per-client rate limit alongside
+  every real stream. A channel that comes back on air is noticed within a
+  minute.
+
 ## 0.60.1 — 2026-09-27
 
 - Establish GitHub pull requests as the development workflow, with privacy checks.
