@@ -393,6 +393,7 @@ type TranscodeStreamer struct {
 	// budgets remain independent of the initiating subscriber's deadline.
 	startupHoldDeadline time.Time
 	classifier          finiteMediaClassifier
+	placeholders        *placeholderCooldown
 	prefixValidator     mediaPrefixValidator
 	avContinuityPolicy  avContinuityPolicy
 	// attemptFlowDuration measures actual output activity, not process setup
@@ -674,7 +675,7 @@ func (s *TranscodeStreamer) runOnce(ctx context.Context) (gotBytes, upstreamFaul
 	attempt.diag.inputTimeline.requireFirstAudio = true
 	attempt.diag.outputTimeline.requireFirstAudio = true
 	defer func() { attempt.finish(err) }()
-	if err = attempt.open(s.hc, s.upstream, "Conductor/stream", s.classifier); err != nil {
+	if err = attempt.open(s.hc, s.upstream, "Conductor/stream", s.classifier, s.placeholders); err != nil {
 		return false, true, err
 	}
 	prefetched, audioOriginCorrection, preflightErr := preflightTranscodeAudioOrigin(

@@ -352,8 +352,15 @@ func newUpstreamAttempt(parent context.Context, rawURL, streamID string, logger 
 	return a
 }
 
-func (a *upstreamAttempt) open(hc *http.Client, rawURL, userAgent string, classifier finiteMediaClassifier) error {
+func (a *upstreamAttempt) open(hc *http.Client, rawURL, userAgent string, classifier finiteMediaClassifier, placeholders *placeholderCooldown) error {
 	started := time.Now()
+	if placeholders.active(rawURL, started) {
+		// The provider called this URL off-air moments ago; reuse that verdict
+		// rather than spending another panel request on the same answer.
+		a.diag.classification = classificationBlackPlaceholder
+		a.diag.classReason = "placeholder_cooldown"
+		return a.wrap("classify", ErrPlaceholderMedia)
+	}
 	req, err := http.NewRequestWithContext(a.ctx, http.MethodGet, rawURL, nil)
 	if err != nil {
 		return a.wrap("request", err)
@@ -422,6 +429,7 @@ func (a *upstreamAttempt) open(hc *http.Client, rawURL, userAgent string, classi
 		return a.wrap("classify", errClassifierTimeout)
 	}
 	if result.kind == classificationBlackPlaceholder {
+		placeholders.mark(rawURL, time.Now())
 		return a.wrap("classify", ErrPlaceholderMedia)
 	}
 

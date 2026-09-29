@@ -250,6 +250,10 @@ type Pool struct {
 
 	hc *http.Client
 
+	// placeholders is shared by every pump so one black-placeholder verdict
+	// covers retries, re-tunes and other viewers of the same upstream URL.
+	placeholders *placeholderCooldown
+
 	// Required process-wide "Source Unavailable" slate. Production renders it
 	// before HTTP admission and treats failure as fatal, because mid-gap lazy
 	// rendering or silent disablement breaks the Plex continuity contract.
@@ -329,6 +333,7 @@ func NewPool(logger *slog.Logger, db *store.DB, resolver store.CredentialResolve
 		exitingPumps:    make(map[uuid.UUID][]pumpEntry),
 		clientRoles:     make(map[uuid.UUID]*streamClientRoles),
 		capacityChanged: make(chan struct{}, 1),
+		placeholders:    newPlaceholderCooldown(),
 		hc: &http.Client{
 			Timeout: 0, // long-lived live streams
 			Transport: &http.Transport{
@@ -1750,6 +1755,7 @@ func (p *Pool) getOrStartStreamer(
 	if profile == nil {
 		s := NewStreamer(streamID.String(), lease.UpstreamURL, pumpLogger, p.hc)
 		s.classifier = newFFmpegFiniteMediaClassifier(p.FFmpegBinary)
+		s.placeholders = p.placeholders
 		s.prefixValidator = newFFprobeMediaPrefixValidator(p.FFmpegBinary)
 		s.startupLead = p.LiveStartupLead
 		s.startupHoldDeadline = startupHoldDeadline
@@ -1771,6 +1777,7 @@ func (p *Pool) getOrStartStreamer(
 		s := NewTranscodeStreamer(streamID.String(), lease.UpstreamURL,
 			tp, p.FFmpegBinary, pumpLogger, p.hc)
 		s.classifier = newFFmpegFiniteMediaClassifier(p.FFmpegBinary)
+		s.placeholders = p.placeholders
 		s.prefixValidator = newFFprobeMediaPrefixValidator(p.FFmpegBinary)
 		s.DiagDir = p.DiagDir
 		s.startupLead = p.LiveStartupLead
