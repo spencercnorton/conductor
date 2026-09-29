@@ -3,6 +3,16 @@
 All notable changes to Conductor are recorded here. Versions follow
 [semantic versioning](https://semver.org/); each release is a tag on `main`.
 
+## Unreleased
+
+- A restarted transcode, a backup source or the recovery slate can rejoin a
+  stream whose delivered audio ended behind its video. An attempt cut off
+  mid-interleave, or stopped by the output A/V drift guard, used to leave the
+  output clock refusing every aligned epoch after it until the 90 s reconnect
+  budget ran out, so the viewer or recording failed. The join now leaves that
+  delivered deficit as an audio hole, with video continuing on its grid. Only
+  an epoch whose own audio starts with its video gets this credit.
+
 ## 0.60.1 — 2026-09-27
 
 - Establish GitHub pull requests as the development workflow, with privacy checks.

@@ -445,17 +445,37 @@ func TestOutputClockOutgoingQueuedPresentationIsExplicitJoinAllowance(t *testing
 		t.Fatalf("explicit AAC join gap=%d ticks, want 5853 (65.033ms)", got)
 	}
 	// The same endpoint discrepancy with no queued B-frame presentation is
-	// not entitled to that allowance. Nor may an actual multi-second deficit
-	// be borrowed from the finite outgoing composition lead.
+	// not entitled to that allowance, and a multi-second deficit cannot be
+	// borrowed from the finite outgoing composition lead. An epoch whose own
+	// audio sits two seconds from its video therefore stays refused.
+	misaligned := outputClockTestGroups(8, 1920, 0, 180000)
+	me := newOutputClockEpoch(p, true, false, misaligned)
+	mg, err := inspectOutputClockGroup(misaligned[0], p, outputClockNative{})
+	if err != nil {
+		t.Fatal(err)
+	}
 	noQueued := c
 	noQueued.lastDTS, noQueued.lastPCR = c.maxPTS, c.maxPTS*300
-	if _, err := noQueued.joinOffset(g, e); !errors.Is(err, errOutputClockBoundary) {
-		t.Fatalf("unproved endpoint gap accepted: %v", err)
-	}
 	largeGap := c
 	largeGap.audioEnd -= 90000
-	if _, err := largeGap.joinOffset(g, e); !errors.Is(err, errOutputClockBoundary) {
-		t.Fatalf("one-second audio deficit accepted: %v", err)
+	for name, delivered := range map[string]pumpOutputClock{"unproved": noQueued, "one-second": largeGap} {
+		if _, err := delivered.joinOffset(mg, me); !errors.Is(err, errOutputClockBoundary) {
+			t.Fatalf("%s audio deficit carried a misaligned epoch: %v", name, err)
+		}
+		// An aligned epoch joins on the delivered picture grid. The deficit
+		// the delivered epoch already ended with becomes the audio hole; the
+		// join adds only the incoming epoch's own audio lead to it. Refusing it
+		// refused every later attempt and the slate alike (see
+		// TestOutputClockAlignedEpochRejoinsDeliveredImbalance).
+		offset, err := delivered.joinOffset(g, e)
+		if err != nil {
+			t.Fatalf("%s audio deficit refused an aligned epoch: %v", name, err)
+		}
+		deficit := delivered.maxPTS + delivered.cadence - delivered.audioEnd
+		if hole := g.firstAudio + offset - delivered.audioEnd; hole != deficit+g.firstAudio-g.minPTS {
+			t.Fatalf("%s: audio hole=%d ticks, want deficit %d plus incoming lead %d",
+				name, hole, deficit, g.firstAudio-g.minPTS)
+		}
 	}
 	videoGap := c
 	videoGap.audioEnd = c.maxPTS + c.cadence + 7200 - g.minPTS + g.firstAudio
