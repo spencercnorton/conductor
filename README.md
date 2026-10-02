@@ -133,5 +133,8 @@ go vet ./...
   <a href="https://github.com/spencercnorton/xnote-placement">XNote Placement</a> ·
   <a href="https://github.com/spencercnorton/snipsnap">SnipSnap</a> ·
   <a href="https://github.com/spencercnorton/conductor">Conductor</a> ·
+  <a href="https://github.com/spencercnorton/norvi-os">NorviOS</a> ·
+  <a href="https://github.com/spencercnorton/indigo">Indigo</a> ·
+  <a href="https://github.com/spencercnorton/roadtrack">Road Track</a> ·
   <a href="https://norvitech.com">norvitech.com</a>
 </p>
