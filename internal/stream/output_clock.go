@@ -123,12 +123,8 @@ func (c pumpOutputClock) prepare(data []byte, epoch *outputClockEpoch, real bool
 		// behavior for this pump. Do not make a previously playable constant
 		// audio origin (for example +1.8s) permanently fail during recovery.
 		bound := epoch.cadence + g.audioStep + 1
-		// A B-frame composition lead is not a different audio origin. Judge
-		// initial AAC against decode time with the proved composition lead;
-		// a RAP-trimmed prefix may retain matching earlier AAC. PCR phase
-		// cannot borrow this composition allowance.
-		composition := max(int64(0), g.firstPTS-g.firstDTS)
-		if absOutputClock(g.firstAudio-g.firstDTS) > bound+composition || absOutputClock(g.firstDTS*300-g.firstPCR) > bound*300 {
+		// PCR phase cannot borrow the composition allowance avAligned grants.
+		if !g.avAligned(epoch.cadence) || absOutputClock(g.firstDTS*300-g.firstPCR) > bound*300 {
 			next.enabled = false
 			return data, next, nil
 		}
@@ -232,7 +228,21 @@ func (c pumpOutputClock) joinOffset(g outputClockGroup, epoch *outputClockEpoch)
 	audioAllowed := allowed + oldQueued
 	videoGap := minPTS + offset - (c.maxPTS + c.cadence)
 	audioGap := g.firstAudio + offset - c.audioEnd
-	if videoGap < 0 || audioGap < 0 || videoGap > allowed || audioGap > audioAllowed {
+	// The delivered epoch can itself end with its audio behind its video: an
+	// attempt cut off mid-interleave, or killed by the output A/V drift guard
+	// after its audio clock lost samples (measured 0.17-3.1 s). A continuous
+	// video join must then leave that delivered deficit as an audio hole. It is
+	// history, not a new gap, and refusing it refuses every later attempt and
+	// the slate alike, because none of them can change what was delivered: the
+	// pump stays dark until its reconnect budget expires. Credit exactly that
+	// deficit, and only to an incoming epoch whose own audio starts with its
+	// video, so a misaligned source still cannot carry its offset into the
+	// output.
+	var deliveredDeficit int64
+	if g.avAligned(cadence) {
+		deliveredDeficit = max(0, c.maxPTS+c.cadence-c.audioEnd)
+	}
+	if videoGap < 0 || audioGap < 0 || videoGap > allowed || audioGap > audioAllowed+deliveredDeficit {
 		return 0, outputClockParseError("A/V presentation endpoints cannot share a bounded offset")
 	}
 	// PCR phase changes cannot borrow an unrelated B-frame allowance.
@@ -254,4 +264,13 @@ func ceilOutputClock(v, divisor int64) int64 {
 		q++
 	}
 	return q
+}
+
+// avAligned reports whether a group's first AAC starts within one picture
+// cadence and one audio step of its first picture's decode time. A B-frame
+// composition lead is not a different audio origin, so the proved lead is
+// allowed on top; a RAP-trimmed prefix may retain matching earlier AAC.
+func (g outputClockGroup) avAligned(cadence int64) bool {
+	composition := max(int64(0), g.firstPTS-g.firstDTS)
+	return absOutputClock(g.firstAudio-g.firstDTS) <= cadence+g.audioStep+1+composition
 }
