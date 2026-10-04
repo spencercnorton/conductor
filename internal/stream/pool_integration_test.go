@@ -2657,3 +2657,66 @@ drainCapacity:
 		t.Fatal("ordinary teardown emitted no capacity wake after retry and physical exit")
 	}
 }
+
+// TestIntegrationPoolRetuneReusesBlackPlaceholderVerdict drives the real
+// entry point: two separate tunes of an off-air channel through Pool.Serve,
+// with the production ffmpeg classifier. The Pool must hand its shared
+// black-placeholder verdict to every pump it builds, so the provider sees one
+// download of its "off air" file in total, not one per tune and retry.
+func TestIntegrationPoolRetuneReusesBlackPlaceholderVerdict(t *testing.T) {
+	db := freshStreamDB(t)
+	for _, bin := range []string{"ffmpeg", "ffprobe"} {
+		if _, err := exec.LookPath(bin); err != nil {
+			if os.Getenv("CI") != "" {
+				t.Fatalf("%s missing from supported CI image", bin)
+			}
+			t.Skipf("%s not on PATH", bin)
+		}
+	}
+	path := filepath.Join(t.TempDir(), "black-600s.ts")
+	gen := exec.Command("ffmpeg", "-v", "error",
+		"-f", "lavfi", "-i", "color=c=black:s=128x72:r=5:d=600",
+		"-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000:d=600",
+		"-map", "0:v:0", "-map", "1:a:0", "-t", "600", "-shortest",
+		"-c:v", "libx264", "-preset", "ultrafast",
+		"-g", "5", "-keyint_min", "5", "-sc_threshold", "0",
+		"-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "64k",
+		"-f", "mpegts", "-y", path)
+	if out, err := gen.CombinedOutput(); err != nil {
+		t.Fatalf("generate black TS: %v: %s", err, out)
+	}
+	black, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var downloads atomic.Int32
+	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		downloads.Add(1)
+		w.Header().Set("Content-Type", "video/mp2t")
+		w.Header().Set("Content-Length", fmt.Sprint(len(black)))
+		_, _ = w.Write(black)
+	}))
+	defer provider.Close()
+
+	ch, _ := seedChannel(t, db, 1, provider.URL)
+	pool := stream.NewPool(slog.New(slog.NewTextHandler(io.Discard, nil)), db, store.PassthroughResolverForTest{})
+	defer pool.Close()
+
+	for tune := 1; tune <= 2; tune++ {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/stream/901", nil)
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		err := pool.Serve(ctx, rec, req, ch.ID)
+		cancel()
+		if err == nil {
+			t.Fatalf("tune %d: off-air placeholder was served as media", tune)
+		}
+		if bytes.Contains(rec.Body.Bytes(), black[:188]) {
+			t.Fatalf("tune %d: placeholder bytes reached the client", tune)
+		}
+	}
+	if got := downloads.Load(); got != 1 {
+		t.Fatalf("provider placeholder downloads = %d across two tunes, want 1", got)
+	}
+}
