@@ -69,7 +69,7 @@ Usage:
 import argparse, json, os, re, sys, time, urllib.request, urllib.parse
 
 BASE = "http://127.0.0.1:8409"
-DEAD = range(1568000, 1569001)
+DEAD = range(1568582, 1568875)  # the GO: block above, 1568582-1568874 inclusive
 SID_RE = re.compile(r"/(\d+)\.ts$")
 # channel name (conductor) -> exact catalogue name. Plain "HD" over EAST/WEST where
 # both exist (matches the existing TLC 325801 / HALLMARK 325790 convention).
@@ -101,7 +101,7 @@ PREFER = {"US: FOX BUSINESS NETWORK HD": 324925, "US: SEC NETWORK HD": 325807}
 
 def api(path, body=None, method=None):
     req = urllib.request.Request(BASE + path, data=json.dumps(body).encode() if body is not None else None,
-                                 headers={"Authorization": "Bearer " + os.environ["AK"], "Content-Type": "application/json"},
+                                 headers={"Authorization": "Bearer " + os.environ["CONDUCTOR_ADMIN_API_KEY"], "Content-Type": "application/json"},
                                  method=method or ("POST" if body is not None else "GET"))
     with urllib.request.urlopen(req, timeout=30) as r:
         return json.load(r) if r.length != 0 else {}
@@ -117,12 +117,11 @@ def streams(url):
 
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument("--apply", action="store_true"); args = ap.parse_args()
-    user, pw = creds["env"]
+    # one live provider credential for the catalogue and the stream probe (never printed)
+    user, pw = os.environ["XTREAM_USER"], os.environ["XTREAM_PASS"]
     cat = json.load(urllib.request.urlopen(f"http://iboostv.us/player_api.php?username={urllib.parse.quote(user)}&password={urllib.parse.quote(pw)}&action=get_live_streams", timeout=120))
     byname = {}
     for s in cat: byname.setdefault((s.get("name") or "").strip(), []).append(int(s["stream_id"]))
-    # one live provider credential for the catalogue and the stream probe (never printed)
-    creds = {"env": (os.environ["XTREAM_USER"], os.environ["XTREAM_PASS"])}
     channels = api("/admin/channels")
     todo, skipped, verified = [], [], {}
     for ch in channels:
@@ -137,7 +136,6 @@ def main():
             prefix = src["UpstreamURL"][: m.start(1)]
             # verify once per target name with a real credential (the stored URL is a ${USER}/${PASS} template)
             if target not in verified:
-                user, pw = next(iter(creds.values()))
                 verified[target] = next((i for i in ids if streams(prefix.replace("${USER}", user).replace("${PASS}", pw) + f"{i}.ts")), None)
                 time.sleep(1)
             sid = verified[target]
