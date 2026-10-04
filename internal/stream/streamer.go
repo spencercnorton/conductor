@@ -174,6 +174,7 @@ type Streamer struct {
 	// immutable after pump construction, including when later viewers attach.
 	startupHoldDeadline time.Time
 	classifier          finiteMediaClassifier
+	placeholders        *placeholderCooldown
 	prefixValidator     mediaPrefixValidator
 	avContinuityPolicy  avContinuityPolicy
 	// attemptFlowDuration measures first-output-byte to last-output-byte for
@@ -421,7 +422,7 @@ func (s *Streamer) runOnce(ctx context.Context) (gotBytes bool, err error) {
 	attempt.allowStartupProgressExtension(
 		startupExtensionWall(s.initialStartupDeadline, s.MediaReady()))
 	defer func() { attempt.finish(err) }()
-	if err = attempt.open(s.hc, s.upstream, "Conductor/stream", s.classifier); err != nil {
+	if err = attempt.open(s.hc, s.upstream, "Conductor/stream", s.classifier, s.placeholders); err != nil {
 		return false, err
 	}
 
