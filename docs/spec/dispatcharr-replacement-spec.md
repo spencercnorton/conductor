@@ -35,7 +35,7 @@ Goal: a drop-in HDHomeRun replacement that Plex sees as a clean, well-behaved tu
 - Strong stdlib for HTTP/2, TLS, and io.Pipe for buffer chains.
 - FFmpeg invocation when needed via os/exec is fine.
 
-**Alternative: Python (FastAPI + asyncio + uvloop).** Acceptable if Claude Code or future contributors prefer it; the streaming hot path needs careful attention to avoid GIL contention. If chosen, isolate the stream proxy as a separate process from the API/UI server.
+**Alternative: Python (FastAPI + asyncio + uvloop).** Acceptable if future contributors prefer it; the streaming hot path needs careful attention to avoid GIL contention. If chosen, isolate the stream proxy as a separate process from the API/UI server.
 
 **Frontend: React + TypeScript + Vite.** TanStack Query for server state. Tailwind for speed.
 

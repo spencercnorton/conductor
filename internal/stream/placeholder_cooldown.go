@@ -16,7 +16,7 @@ import (
 // requests a minute. Providers rate-limit per client IP, so that noise
 // competes with every real stream.
 //
-// ponytail: one fixed window, shared per process. Ceiling: at most one
+// Deliberately simple: one fixed window, shared per process. Ceiling: at most one
 // provider request per black URL per window, and a channel that comes back
 // on air is noticed up to one window late (a DVR can lose up to a minute of
 // an event's first minutes). Grow it exponentially only if one request a minute per

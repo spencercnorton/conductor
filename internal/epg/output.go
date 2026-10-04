@@ -646,7 +646,7 @@ func brandedFallbackPosterURL(r store.ProgramOutputRow, baseURL string) string {
 	}
 	cat := primaryCategory(r)
 	if isSportsCategory(cat) {
-		// ponytail: this card has to stay logo-less for the reason above,
+		// This card has to stay logo-less for the reason above,
 		// and Render draws no text (the "category name in small ASCII
 		// caps" in the package doc was never implemented) — so it can
 		// only ever be a flat colour block. Plex renders it as a bare
