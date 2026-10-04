@@ -3,6 +3,17 @@
 All notable changes to Conductor are recorded here. Versions follow
 [semantic versioning](https://semver.org/); each release is a tag on `main`.
 
+## Unreleased
+
+- The DVR reconciler now cancels a recording it booked from a Sonarr or Radarr
+  wanted list once that list stops claiming it — the episode or movie was
+  grabbed elsewhere, or unmonitored — instead of recording it anyway. Such a
+  recording held a scarce provider slot for its whole window and was then
+  thrown away, because the *arr will not import a copy it no longer wants.
+  Only a list that was read completely is judged, only airings the guide still
+  shows, only recordings more than 15 minutes from their start, and a booking
+  must go unclaimed for two consecutive cycles.
+
 ## 0.60.2 — 2026-09-29
 
 - Remember a provider's black "off air" placeholder for a minute per upstream

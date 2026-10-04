@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/spencercnorton/conductor/internal/dvr"
 	"github.com/spencercnorton/conductor/internal/store"
 )
@@ -43,7 +45,21 @@ type Worker struct {
 	// AdmissionPolicy keeps schedule-time conflict metadata aligned with the
 	// scheduler's reserve and recorder padding. nil uses store defaults.
 	AdmissionPolicy *store.DVRAdmissionPolicy
+
+	// unwantedSeen counts consecutive cycles each scheduled row has gone
+	// unclaimed by any want (see cancelUnwanted). Touched only by reconcile.
+	unwantedSeen map[uuid.UUID]int
 }
+
+// cancelGuard keeps cancellation clear of the scheduler, which looks about a
+// minute ahead: a recording this close to its start is left alone.
+const cancelGuard = 15 * time.Minute
+
+// cancelConfirmCycles is how many consecutive cycles a scheduled row must go
+// unclaimed before it is cancelled, so one short or glitched wanted-list read
+// cannot drop a recording that is still wanted. A cancelled airing is never
+// booked again (its exact-airing key stays taken), so this errs on keeping.
+const cancelConfirmCycles = 2
 
 // eligible reports whether a match should be auto-recorded: confidence at or
 // above the threshold, and — for Plex gap matches, which are inferred rather
@@ -99,26 +115,36 @@ func (w *Worker) applyDefaults() {
 	}
 }
 
+// gathered is one cycle's view: the EPG snapshot, every match against it
+// sorted earliest-airing-first, and which requested_by sources
+// ("reconcile:sonarr", "reconcile:radarr") returned a complete wanted-list.
+type gathered struct {
+	progs   []Program
+	matches []Match
+	pulled  []string
+}
+
 // gatherMatches snapshots the EPG, pulls Sonarr/Radarr wanted-lists, and
-// returns every match sorted earliest-airing-first (plus the upcoming
-// program count for reporting). Errors from any single source are logged
-// and gathering continues with whatever it could collect — a hard error is
-// returned only when the EPG snapshot itself fails.
-func (w *Worker) gatherMatches(ctx context.Context) (matches []Match, upcoming int, err error) {
+// returns every match sorted earliest-airing-first. Errors from any single
+// source are logged and gathering continues with whatever it could collect —
+// a hard error is returned only when the EPG snapshot itself fails.
+func (w *Worker) gatherMatches(ctx context.Context) (g gathered, err error) {
 	progs, err := w.DB.ListUpcomingForReconcile(ctx, w.Window)
 	if err != nil {
-		return nil, 0, err
+		return gathered{}, err
 	}
-	upcoming = len(progs)
-	if upcoming == 0 {
-		return nil, 0, nil
+	g.progs = progs
+	if len(progs) == 0 {
+		return g, nil
 	}
+	var matches []Match
 
 	if w.Radarr != nil {
 		if wants, err := w.Radarr.WantedMovies(ctx); err != nil {
 			w.Logger.Warn("reconcile: radarr wanted failed", "err", err)
 		} else {
 			matches = append(matches, MatchMovies(progs, wants)...)
+			g.pulled = append(g.pulled, "reconcile:radarr")
 			w.Logger.Info("reconcile: radarr wanted pulled", "wanted", len(wants))
 		}
 	}
@@ -130,6 +156,7 @@ func (w *Worker) gatherMatches(ctx context.Context) (matches []Match, upcoming i
 			w.Logger.Warn("reconcile: sonarr wanted failed", "err", err)
 		} else {
 			matches = append(matches, MatchEpisodes(progs, wants)...)
+			g.pulled = append(g.pulled, "reconcile:sonarr")
 			for _, wt := range wants {
 				wantedSeries[titleKey(wt.SeriesTitle)] = true
 			}
@@ -154,18 +181,21 @@ func (w *Worker) gatherMatches(ctx context.Context) (matches []Match, upcoming i
 	sort.Slice(matches, func(i, j int) bool {
 		return matches[i].Program.StartAt.Before(matches[j].Program.StartAt)
 	})
-	return matches, upcoming, nil
+	g.matches = matches
+	return g, nil
 }
 
 // reconcile runs one full cycle: gather matches and schedule (or, in
-// dry-run, log) the ones at/above the confidence threshold.
+// dry-run, log) the ones at/above the confidence threshold, then cancel the
+// recordings it booked earlier that no want claims any more.
 func (w *Worker) reconcile(ctx context.Context) {
 	w.applyDefaults()
-	matches, upcoming, err := w.gatherMatches(ctx)
+	g, err := w.gatherMatches(ctx)
 	if err != nil {
 		w.Logger.Warn("reconcile: epg snapshot failed", "err", err)
 		return
 	}
+	upcoming, matches := len(g.progs), g.matches
 	if upcoming == 0 {
 		w.Logger.Info("reconcile: no upcoming programs in window")
 		return
@@ -189,11 +219,110 @@ func (w *Worker) reconcile(ctx context.Context) {
 			scheduled++
 		}
 	}
+	cancelled := w.cancelUnwanted(ctx, g)
 
 	w.Logger.Info("reconcile cycle complete",
 		"upcoming", upcoming, "matches", len(matches),
 		"scheduled", scheduled, "not_recorded", deferred,
-		"over_cap_skipped", skipped, "dry_run", w.DryRun)
+		"over_cap_skipped", skipped, "cancelled", cancelled, "dry_run", w.DryRun)
+}
+
+// cancelUnwanted cancels the recordings this worker booked from a Sonarr or
+// Radarr wanted-list once that list stops claiming them — the *arr grabbed the
+// episode or movie elsewhere, or it was unmonitored. Left alone, the recording
+// runs anyway, holds a scarce provider slot for its whole window and is then
+// thrown away: the *arr will not import a copy it no longer wants.
+//
+// Only sources whose wanted-list came back complete this cycle are judged, and
+// only airings the EPG snapshot still shows, so a failed *arr call or a guide
+// gap never cancels anything. Returns how many rows were (or, in dry-run,
+// would be) cancelled.
+func (w *Worker) cancelUnwanted(ctx context.Context, g gathered) int {
+	if len(g.pulled) == 0 {
+		return 0
+	}
+	after := time.Now().Add(cancelGuard)
+	rows, err := w.DB.ListUnstartedDVRRecordingsByRequester(ctx, g.pulled, after)
+	if err != nil {
+		w.Logger.Warn("reconcile: list booked recordings failed", "err", err)
+		return 0
+	}
+	n := 0
+	for _, r := range w.confirmUnwanted(unwantedRecordings(rows, g, w.outputFor)) {
+		if w.DryRun {
+			w.Logger.Info("reconcile: WOULD cancel recording no longer wanted (dry-run)",
+				"id", r.ID, "program", r.Title, "start", r.ScheduledStart,
+				"requested_by", r.RequestedBy, "output", r.OutputPath)
+			n++
+			continue
+		}
+		ok, err := w.DB.CancelUnstartedDVRRecording(ctx, r.ID, after,
+			"cancelled: "+r.RequestedBy+" no longer wants this recording")
+		if err != nil {
+			w.Logger.Warn("reconcile: cancel failed", "id", r.ID, "err", err)
+			continue
+		}
+		if ok {
+			n++
+			w.Logger.Info("reconcile: cancelled recording no longer wanted",
+				"id", r.ID, "program", r.Title, "start", r.ScheduledStart,
+				"requested_by", r.RequestedBy, "output", r.OutputPath)
+		}
+	}
+	return n
+}
+
+// unwantedRecordings returns the booked rows that no current want claims,
+// among airings the EPG snapshot still shows. A row is still claimed when a
+// wanted-list match targets its output path (the want) or its exact airing
+// (channel, start, title — the key it was booked under), whatever that
+// match's confidence: a dip below the auto-record threshold is not the *arr
+// dropping the want.
+func unwantedRecordings(rows []store.DVRRecording, g gathered, outputFor func(Match) string) []store.DVRRecording {
+	type slot struct {
+		channel uuid.UUID
+		start   int64
+	}
+	type airing struct {
+		slot
+		title string
+	}
+	shown := make(map[slot]bool, len(g.progs))
+	for _, p := range g.progs {
+		shown[slot{p.ChannelID, p.StartAt.UnixMicro()}] = true
+	}
+	paths, airings := map[string]bool{}, map[airing]bool{}
+	for _, m := range g.matches {
+		if m.Source == "plex-gap" {
+			continue // an inferred gap is not the *arr wanting it
+		}
+		paths[outputFor(m)] = true
+		airings[airing{slot{m.Program.ChannelID, m.Program.StartAt.UnixMicro()}, m.Program.Title}] = true
+	}
+	var out []store.DVRRecording
+	for _, r := range rows {
+		s := slot{r.ChannelID, r.ScheduledStart.UnixMicro()}
+		if !shown[s] || paths[r.OutputPath] || airings[airing{s, r.Title}] {
+			continue
+		}
+		out = append(out, r)
+	}
+	return out
+}
+
+// confirmUnwanted returns the rows found unwanted for cancelConfirmCycles
+// consecutive cycles. A row missing from this cycle's list starts over.
+func (w *Worker) confirmUnwanted(rows []store.DVRRecording) []store.DVRRecording {
+	seen := make(map[uuid.UUID]int, len(rows))
+	var due []store.DVRRecording
+	for _, r := range rows {
+		seen[r.ID] = w.unwantedSeen[r.ID] + 1
+		if seen[r.ID] >= cancelConfirmCycles {
+			due = append(due, r)
+		}
+	}
+	w.unwantedSeen = seen
+	return due
 }
 
 // PreviewItem is one match as rendered for the admin preview endpoint.
@@ -230,10 +359,11 @@ type PreviewReport struct {
 // database. Safe to call on demand from the admin API.
 func (w *Worker) Preview(ctx context.Context) (*PreviewReport, error) {
 	w.applyDefaults()
-	matches, upcoming, err := w.gatherMatches(ctx)
+	g, err := w.gatherMatches(ctx)
 	if err != nil {
 		return nil, err
 	}
+	upcoming, matches := len(g.progs), g.matches
 	rep := &PreviewReport{
 		GeneratedAt: time.Now(), DryRun: w.DryRun,
 		Threshold: w.Threshold, MaxPerCycle: w.MaxPerCycle,
@@ -251,18 +381,12 @@ func (w *Worker) Preview(ctx context.Context) (*PreviewReport, error) {
 		} else {
 			rep.LowConfidence++
 		}
-		onscreenSE := ""
-		if m.Kind == "episode" {
-			if onscreenSE = onscreen(m.Season, m.Episode); onscreenSE == "" {
-				onscreenSE = m.Program.EpisodeNumOnscreen
-			}
-		}
 		rep.Items = append(rep.Items, PreviewItem{
 			Want: m.WantLabel, Kind: m.Kind, Source: sourceLabel(m.Source),
 			Program: m.Program.Title,
 			Channel: m.Program.ChannelName, StartAt: m.Program.StartAt,
 			Confidence: m.Confidence, Reason: m.Reason,
-			WouldRecord: would, OutputPath: w.buildOutputPath(m, onscreenSE),
+			WouldRecord: would, OutputPath: w.outputFor(m),
 		})
 	}
 	return rep, nil
@@ -271,13 +395,7 @@ func (w *Worker) Preview(ctx context.Context) (*PreviewReport, error) {
 // scheduleOne inserts (or, in dry-run, logs) the recording for one match.
 // Returns true when a recording was scheduled (or would have been).
 func (w *Worker) scheduleOne(ctx context.Context, m Match) bool {
-	onscreenSE := ""
-	if m.Kind == "episode" {
-		onscreenSE = onscreen(m.Season, m.Episode)
-		if onscreenSE == "" {
-			onscreenSE = m.Program.EpisodeNumOnscreen
-		}
-	}
+	onscreenSE := onscreenFor(m)
 	output := w.buildOutputPath(m, onscreenSE)
 
 	if w.DryRun {
@@ -327,6 +445,24 @@ func (w *Worker) scheduleOne(ctx context.Context, m Match) bool {
 		"channel", m.Program.ChannelName, "start", m.Program.StartAt,
 		"confidence", m.Confidence, "reason", m.Reason, "output", output)
 	return true
+}
+
+// onscreenFor is the SxxExx a match is booked under: the want's numbers,
+// else the EPG's own; empty for movies.
+func onscreenFor(m Match) string {
+	if m.Kind != "episode" {
+		return ""
+	}
+	if se := onscreen(m.Season, m.Episode); se != "" {
+		return se
+	}
+	return m.Program.EpisodeNumOnscreen
+}
+
+// outputFor is the output path scheduleOne books a match under. The cancel
+// pass keys on it too, so the two cannot disagree about which want owns a row.
+func (w *Worker) outputFor(m Match) string {
+	return w.buildOutputPath(m, onscreenFor(m))
 }
 
 // buildOutputPath mirrors internal/dvr/schedule.go's layout so recordings

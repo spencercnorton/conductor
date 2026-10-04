@@ -1167,6 +1167,56 @@ func (db *DB) MarkDVRRecordingCancelled(ctx context.Context, id uuid.UUID) error
 	return err
 }
 
+// ListUnstartedDVRRecordingsByRequester returns the scheduled recordings that
+// one of requestedBy created, that have not started, and that start after
+// startsAfter, earliest first.
+func (db *DB) ListUnstartedDVRRecordingsByRequester(
+	ctx context.Context,
+	requestedBy []string,
+	startsAfter time.Time,
+) ([]DVRRecording, error) {
+	rows, err := db.Pool.Query(ctx, `SELECT `+dvrRecordingColumns+`
+		  FROM dvr_recording
+		 WHERE state = 'scheduled' AND started_at IS NULL
+		   AND requested_by = ANY($1) AND scheduled_start > $2
+		 ORDER BY scheduled_start ASC, id ASC`, requestedBy, startsAfter)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []DVRRecording
+	for rows.Next() {
+		r, err := scanDVRRecording(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
+// CancelUnstartedDVRRecording cancels a recording nobody wants any more. Only a
+// row that is still scheduled, unstarted and due after startsAfter changes, so
+// it cannot race the scheduler's claim (TryMarkDVRRecordingStartedBefore) or
+// stop a recording in flight. false,nil means the row had already moved on.
+func (db *DB) CancelUnstartedDVRRecording(
+	ctx context.Context,
+	id uuid.UUID,
+	startsAfter time.Time,
+	reason string,
+) (bool, error) {
+	ct, err := db.Pool.Exec(ctx, `
+		UPDATE dvr_recording
+		   SET state = 'cancelled', completed_at = clock_timestamp(),
+		       error = $3, admission_retry_at = NULL
+		 WHERE id = $1 AND state = 'scheduled' AND started_at IS NULL
+		   AND scheduled_start > $2`, id, startsAfter, reason)
+	if err != nil {
+		return false, err
+	}
+	return ct.RowsAffected() == 1, nil
+}
+
 // DVRMediaReport is timestamp-derived validation evidence for a normalized
 // artifact. Values are absolute offsets in milliseconds. Format-level MPEG-TS
 // duration is deliberately not used because timestamp resets can inflate it by

@@ -58,7 +58,7 @@ jobs:
         run: |
           createdb -h 127.0.0.1 -U postgres conductor_stream_test
           createdb -h 127.0.0.1 -U postgres conductor_api_test
-      - run: go test -race -p 1 -count=1 -timeout=15m ./internal/store ./internal/stream ./internal/api ./internal/dvr ./internal/epg ./internal/sd
+      - run: go test -race -p 1 -count=1 -timeout=15m ./internal/store ./internal/stream ./internal/api ./internal/dvr ./internal/epg ./internal/sd ./internal/reconcile
   gpu-image:
     name: GPU container build
     runs-on: ubuntu-24.04
