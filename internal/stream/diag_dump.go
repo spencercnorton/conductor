@@ -19,7 +19,7 @@ import (
 // Disabled unless a directory is configured (CONDUCTOR_DIAG_DIR). Bounded:
 // newest diagRetainFiles files are kept, everything older is pruned on each
 // save. Best-effort by design — a dump failure must never affect the stream
-// path. ponytail: prune-on-save races between concurrent refusals can leave
+// path. Known gap: prune-on-save races between concurrent refusals can leave
 // one extra file until the next save; a mutex is not worth it.
 const diagRetainFiles = 12
 
