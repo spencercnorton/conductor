@@ -141,6 +141,11 @@ type Config struct {
 	// CONDUCTOR_COMMSKIP_API_KEY: Bearer key for commskip-auto.
 	CommskipAPIKey string
 
+	// CONDUCTOR_COMMSKIP_DRY_RUN: send dry_run to commskip-auto, which then
+	// writes a detection report but leaves the recording uncut. Default
+	// true; set false to have commercials cut before the *arr import.
+	CommskipDryRun bool
+
 	// Phase 3: enrichment.
 
 	// CONDUCTOR_TMDB_API_KEY: TMDb v3 API key. Empty = enrichment disabled.
@@ -400,6 +405,7 @@ func Load() (Config, error) {
 		DiagDir:                  os.Getenv("CONDUCTOR_DIAG_DIR"),
 		CommskipURL:              os.Getenv("CONDUCTOR_COMMSKIP_URL"),
 		CommskipAPIKey:           os.Getenv("CONDUCTOR_COMMSKIP_API_KEY"),
+		CommskipDryRun:           parseBoolDefault(os.Getenv("CONDUCTOR_COMMSKIP_DRY_RUN"), true),
 		TMDbAPIKey:               os.Getenv("CONDUCTOR_TMDB_API_KEY"),
 		TMDbBaseURL:              os.Getenv("CONDUCTOR_TMDB_BASE_URL"),
 		EnrichInterval:           enrichInterval,

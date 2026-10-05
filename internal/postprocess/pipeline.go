@@ -5,10 +5,11 @@
 //
 // Built-in stages:
 //
-//   commskip-auto    POSTs the file to the external commskip-auto service,
-//                    which runs Comskip + Whisper + LLM as a hybrid
-//                    pipeline. Produces .edl and .srt sidecars next to
-//                    the recording.
+//   commskip-auto    Submits the file to the external commskip-auto
+//                    service (Comskip + Whisper + LLM) as a one-file batch
+//                    and waits for it to finish. Dry run by default: a
+//                    detection report only; with dry run off, commercials
+//                    are cut before the *arr import stage runs.
 //
 //   webhook          Generic POST hook. Body = JSON {file_path, bytes,
 //                    title, …}. Useful for plugging in additional tools
