@@ -5,6 +5,14 @@ All notable changes to Conductor are recorded here. Versions follow
 
 ## Unreleased
 
+- The commskip post-record stage now uses commskip-auto's batch API: it
+  submits the recording as a one-file batch (`POST /api/v1/batches`), polls
+  the batch until it finishes, and cancels it if it is still waiting after
+  25 minutes so it cannot run against a file the *arr import has moved. The
+  old `/api/v1/process` endpoint never existed, so the stage could not work
+  before. New `CONDUCTOR_COMMSKIP_DRY_RUN` (default `true`) controls whether
+  commskip only reports or actually cuts. The stage stays off unless
+  `CONDUCTOR_COMMSKIP_URL` is set.
 - The DVR reconciler now cancels a recording it booked from a Sonarr or Radarr
   wanted list once that list stops claiming it — the episode or movie was
   grabbed elsewhere, or unmonitored — instead of recording it anyway. Such a

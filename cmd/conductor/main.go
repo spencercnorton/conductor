@@ -414,12 +414,12 @@ func main() {
 
 			// Phase 4b: post-record pipeline (commskip-auto + Whisper + LLM)
 			// followed by an *arr import-scan trigger. The import stage runs
-			// last so commskip's .edl/.srt sidecars exist before *arr imports.
+			// last so a commskip cut (dry run off) is written before *arr imports.
 			var stages []postprocess.Stage
 			var stageNames []string
 			if cfg.CommskipURL != "" {
 				stages = append(stages,
-					postprocess.NewCommskipStage(cfg.CommskipURL, cfg.CommskipAPIKey, logger))
+					postprocess.NewCommskipStage(cfg.CommskipURL, cfg.CommskipAPIKey, cfg.CommskipDryRun, logger))
 				stageNames = append(stageNames, "commskip-auto")
 			}
 			arrConfigured := (cfg.SonarrURL != "" && cfg.SonarrAPIKey != "") ||

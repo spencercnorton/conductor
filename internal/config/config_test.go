@@ -123,3 +123,16 @@ func TestParseUpstreamProxy(t *testing.T) {
 		}
 	}
 }
+
+func TestLoadCommskipDryRunDefaultsTrue(t *testing.T) {
+	t.Setenv("CONDUCTOR_DATA_DIR", t.TempDir())
+	t.Setenv("CONDUCTOR_DEVICE_ID", "A1B2C3D4")
+	t.Setenv("CONDUCTOR_COMMSKIP_DRY_RUN", "")
+	if cfg, err := Load(); err != nil || !cfg.CommskipDryRun {
+		t.Fatalf("unset: dry run = %v, err %v", cfg.CommskipDryRun, err)
+	}
+	t.Setenv("CONDUCTOR_COMMSKIP_DRY_RUN", "false")
+	if cfg, err := Load(); err != nil || cfg.CommskipDryRun {
+		t.Fatalf("false: dry run still on, err %v", err)
+	}
+}
