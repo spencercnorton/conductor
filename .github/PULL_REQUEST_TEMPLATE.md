@@ -16,8 +16,7 @@
 - [ ] Docs updated if behaviour changed (README, docs/)
 
 <!--
-How this lands: this repository is a release mirror. A maintainer reviews the
-pull request here, applies accepted changes to the development tree, and the
-change ships in the next tagged release — the pull request is then closed
-with a reference to that release. See CONTRIBUTING.md.
+How this lands: open a pull request here. A maintainer reviews it and merges it
+once the required checks pass. The change ships in the next tagged release. See
+CONTRIBUTING.md.
 -->

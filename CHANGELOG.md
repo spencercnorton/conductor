@@ -5,6 +5,8 @@ All notable changes to Conductor are recorded here. Versions follow
 
 ## Unreleased
 
+- Clarify the contribution workflow and guide references in the public documentation.
+
 - The commskip post-record stage now uses commskip-auto's batch API: it
   submits the recording as a one-file batch (`POST /api/v1/batches`), polls
   the batch until it finishes, and cancels it if it is still waiting after
