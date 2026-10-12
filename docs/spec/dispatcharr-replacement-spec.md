@@ -699,7 +699,7 @@ Total: 11–15 weeks of focused part-time work. Phases 1, 4, and 5 are the value
   moving guide horizon can change without a
   database revision.
 - Plex builds a local cache of channel logos. To force-refresh, change the icon URL (cache-bust query param).
-- Plex's EPG match priority: IMDb id > TMDb id > exact title + year > fuzzy title. Provide IDs in `<icon>` — wait, no — Plex doesn't read IDs from XMLTV directly. Match accuracy comes from clean titles + year/episode-num.
+- Plex's EPG match priority: IMDb id > TMDb id > exact title + year > fuzzy title. Plex does not read IDs from XMLTV directly. Match accuracy comes from clean titles + year/episode-num.
 - Plex's custom XMLTV provider derives New for recognized episodes primarily
   from the absence of `<previously-shown>`; it does not expose `<live/>` as a
   Live badge.

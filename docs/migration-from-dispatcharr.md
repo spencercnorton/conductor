@@ -116,7 +116,7 @@ curl -sS -H "Authorization: Bearer $CONDUCTOR_ADMIN_KEY" \
 When ready:
 
 1. **In Plex**: Settings → Live TV & DVR → DVR → Devices → click each Dispatcharr device → **Disable** (don't delete; Plex preserves recording history that way).
-2. **Update DVR lineup** to point at Conductor's XMLTV (when Conductor has its own EPG ingested — see `docs/enhancements.md` §12 for Schedules Direct setup, or just let Conductor pull Dispatcharr's XMLTV via `POST /admin/epg/sources` while Dispatcharr's still up).
+2. **Update DVR lineup** to point at Conductor's XMLTV (when Conductor has its own EPG ingested — see [EPG episode numbers](epg-episode-numbers.md) for Schedules Direct setup, or just let Conductor pull Dispatcharr's XMLTV via `POST /admin/epg/sources` while Dispatcharr's still up).
 3. Wait 24h. Verify no scheduled recordings broke.
 4. **Stop the Dispatcharr container or stack** (don't delete yet — keep its `/data` volume around for a week as a rollback option).
 5. After a clean week, archive the volume + delete the stack.
